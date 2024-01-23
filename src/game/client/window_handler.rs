@@ -56,7 +56,7 @@ impl WindowHandler {
     let size = UVec2::new(512, 512);
 
     let window = video_subsystem
-      .window("minetest", size.x, size.y)
+      .window("AMONGUSTESTLOLOLOLOLOLOLOLOLOLOLOLOLOL", size.x, size.y)
       .resizable()
       .position_centered()
       .allow_highdpi()
