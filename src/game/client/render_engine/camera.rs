@@ -78,7 +78,7 @@ impl Camera {
       rotation: Vec3A::new(0.0, 0.0, 0.0),
       up: glam::Vec3A::Y,
       aspect_ratio: window_handler.get_width() as f32 / window_handler.get_height() as f32,
-      fov_y: 45.0,
+      fov_y: 90.0,
       z_near: 0.1,
       z_far: 100.0,
 

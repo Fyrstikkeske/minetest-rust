@@ -228,7 +228,7 @@ impl Client {
 
     // Now render everything. 3 steps for now.
 
-    self.spin_test += delta*1000.0;
+    self.spin_test += delta*0.1;
 
     self
       .render_engine
