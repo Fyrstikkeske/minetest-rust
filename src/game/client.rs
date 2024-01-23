@@ -183,11 +183,13 @@ impl Client {
     	let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
       camera_pos.z += delta as f32 * f32::cos(-camera_rot.y);
       camera_pos.x += delta as f32 * f32::sin(-camera_rot.y);
+      camera_pos.y += delta as f32 * f32::sin(camera_rot.x);
     }
     if self.keyboard.is_key_down("S") {
         let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
       camera_pos.z -= delta as f32 * f32::cos(-camera_rot.y);
       camera_pos.x -= delta as f32 * f32::sin(-camera_rot.y);
+      camera_pos.y -= delta as f32 * f32::sin(camera_rot.x);
     }
 
     if self.keyboard.is_key_down("Left Shift") {
