@@ -167,17 +167,25 @@ impl Client {
 
     // * A very simple test to check the buffer in the shader.
     if self.keyboard.is_key_down("A") {
-      camera_pos.x += delta as f32;
+        let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
+      camera_pos.z += delta as f32 * f32::sin(camera_rot.y);
+      camera_pos.x += delta as f32 * f32::cos(camera_rot.y);
     }
     if self.keyboard.is_key_down("D") {
-      camera_pos.x -= delta as f32;
+        let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
+      camera_pos.z -= delta as f32 * f32::sin(camera_rot.y);
+      camera_pos.x -= delta as f32 * f32::cos(camera_rot.y);
     }
 
     if self.keyboard.is_key_down("W") {
-      camera_pos.z += delta as f32;
+    	let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
+      camera_pos.z += delta as f32 * f32::cos(-camera_rot.y);
+      camera_pos.x += delta as f32 * f32::sin(-camera_rot.y);
     }
     if self.keyboard.is_key_down("S") {
-      camera_pos.z -= delta as f32;
+        let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
+      camera_pos.z -= delta as f32 * f32::cos(-camera_rot.y);
+      camera_pos.x -= delta as f32 * f32::sin(-camera_rot.y);
     }
 
     if self.keyboard.is_key_down("Left Shift") {
@@ -218,7 +226,7 @@ impl Client {
 
     // Now render everything. 3 steps for now.
 
-    self.spin_test += delta;
+    self.spin_test += delta*1000.0;
 
     self
       .render_engine
