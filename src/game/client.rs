@@ -166,6 +166,8 @@ impl Client {
       .get_position();
 
     // * A very simple test to check the buffer in the shader.
+
+    // If jordan4ibanez sees what i did here he would either call the optimazation police after me or die of cringe.
     if self.keyboard.is_key_down("A") {
         let camera_rot = self.render_engine.as_mut().unwrap().get_camera().get_rotation();
       camera_pos.z += delta as f32 * f32::sin(camera_rot.y);
