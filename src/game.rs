@@ -242,7 +242,13 @@ impl Game {
         true => "FPS",
         false => "TPS",
       };
-      println!("Debug {}: {}", time_measurement, self.current_fps)
+      // println!("Debug {}: {}", time_measurement, self.current_fps)
+      if let Some(client) = &mut self.client {
+        let mut new_title = "minetest | ".to_string();
+        new_title.push_str(format!("{:.1}", fps).as_str());
+        new_title.push_str(" FPS");
+        client.get_window_handler().set_title(&new_title);
+      }
     }
 
     if self.vsync_mode == 0 || self.is_server {
