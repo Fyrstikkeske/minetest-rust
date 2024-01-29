@@ -7,8 +7,11 @@ mod window_handler;
 use glam::Vec3A;
 
 use self::{
-  client_connection::ClientConnection, keyboard::KeyboardController, mouse::MouseController,
-  render_engine::RenderEngine, window_handler::WindowHandler,
+  client_connection::ClientConnection,
+  keyboard::KeyboardController,
+  mouse::MouseController,
+  render_engine::{instanced_render_matrix::InstancedRenderData, RenderEngine},
+  window_handler::WindowHandler,
 };
 
 use super::lua_engine::LuaEngine;
@@ -196,7 +199,7 @@ impl Client {
     // println!("camera pos {:?}", camera_pos);
     let mouse_relative = self.mouse.get_relative_position();
     if mouse_relative.length_squared() != 0 {
-      println!("Mouse is moved!");
+      // println!("Mouse is moved!");
       let camera = self.render_engine.get_camera();
       let mut camera_rotation = *camera.get_rotation();
 
@@ -218,13 +221,27 @@ impl Client {
     self.spin_test += delta*0.1;
 
     self.render_engine.initialize_render(&self.window_handler);
-    self.render_engine.render_mesh_unbatched(
+
+    // Not instanced.
+    self.render_engine.render_mesh(
       "debug",
       "tf.jpg",
       Vec3A::new(0.0, 0.0, 0.0),
       Vec3A::new(0.0, self.spin_test as f32, 0.0),
       Vec3A::new(0.0, 0.0, 0.0),
     );
+
+    // Instanced.
+    let mut instancing: Vec<InstancedRenderData> = vec![];
+
+    for x in 0..10 {
+      for z in 0..10 {}
+    }
+
+    self
+      .render_engine
+      .render_mesh_instanced("debug", &mut instancing);
+
     // println!("spin  {}", self.spin_test);
     self.render_engine.process_render_calls();
     self.render_engine.finalize_render();

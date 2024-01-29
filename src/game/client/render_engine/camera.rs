@@ -1,31 +1,10 @@
-use glam::{Mat4, Vec3, Vec3A, Vec4};
+use glam::{Mat4, Vec3, Vec3A};
+
 use wgpu::util::DeviceExt;
 
 use crate::game::client::window_handler::WindowHandler;
 
-pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4 {
-  x_axis: Vec4::new(1.0, 0.0, 0.0, 0.0),
-  y_axis: Vec4::new(0.0, 1.0, 0.0, 0.0),
-  z_axis: Vec4::new(0.0, 0.0, 0.5, 0.5),
-  w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
-};
-
-// We need this for Rust to store our data correctly for the shaders.
-#[repr(C)]
-// This is so we can store this in a buffer.
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
-  // We can't use cgmath with bytemuck directly, so we'll have
-  // to convert the Matrix4 into a 4x4 f32 array.
-  view_projection: [[f32; 4]; 4],
-}
-impl CameraUniform {
-  pub fn new() -> Self {
-    Self {
-      view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-    }
-  }
-}
+use super::trs_projection_data::{TRSProjectionData, OPENGL_TO_WGPU_MATRIX};
 
 pub struct Camera {
   eye: Vec3A,
@@ -37,7 +16,8 @@ pub struct Camera {
   z_near: f32,
   z_far: f32,
 
-  camera_uniform: CameraUniform,
+  // wgpu raw data.
+  camera_uniform: TRSProjectionData,
 
   // wgpu components.
   camera_buffer: wgpu::Buffer,
@@ -50,24 +30,36 @@ impl Camera {
     fov_y: f32,
     device: &wgpu::Device,
     window_handler: &WindowHandler,
+    mesh_buffer: &wgpu::Buffer,
+    instance_trigger_buffer: &wgpu::Buffer,
   ) -> Self {
     // First up is the Camera's uniform.
-    let camera_uniform = CameraUniform::new();
+    let camera_uniform = TRSProjectionData::new();
 
     // Now we create the Camera's buffer.
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
       label: Some("camera_buffer"),
-      contents: bytemuck::cast_slice(&camera_uniform.view_projection),
+      contents: bytemuck::cast_slice(&camera_uniform.projection),
       usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
 
     // Then the bind group.
     let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
       layout: &Camera::get_wgpu_bind_group_layout(device),
-      entries: &[wgpu::BindGroupEntry {
-        binding: 0,
-        resource: camera_buffer.as_entire_binding(),
-      }],
+      entries: &[
+        wgpu::BindGroupEntry {
+          binding: 0,
+          resource: camera_buffer.as_entire_binding(),
+        },
+        wgpu::BindGroupEntry {
+          binding: 1,
+          resource: mesh_buffer.as_entire_binding(),
+        },
+        wgpu::BindGroupEntry {
+          binding: 2,
+          resource: instance_trigger_buffer.as_entire_binding(),
+        },
+      ],
       label: Some("camera_bind_group"),
     });
 
@@ -82,6 +74,7 @@ impl Camera {
       z_near: 0.1,
       z_far: 100.0,
 
+      // wgpu raw data.
       camera_uniform,
 
       // wgpu components.
@@ -101,9 +94,7 @@ impl Camera {
   /// Set the position of the Camera.
   ///
   pub fn set_position(&mut self, new_position: &Vec3A) {
-    self.eye.x = new_position.x;
-    self.eye.y = new_position.y;
-    self.eye.z = new_position.z;
+    self.eye = new_position.to_owned();
   }
 
   ///
@@ -117,9 +108,7 @@ impl Camera {
   /// Set the Camera's rotation.
   ///
   pub fn set_rotation(&mut self, new_rotation: &Vec3A) {
-    self.rotation.x = new_rotation.x;
-    self.rotation.y = new_rotation.y;
-    self.rotation.z = new_rotation.z;
+    self.rotation = new_rotation.to_owned();
   }
 
   ///
@@ -160,18 +149,18 @@ impl Camera {
 
     let projection = Mat4::perspective_rh(self.fov_y, self.aspect_ratio, self.z_near, self.z_far);
 
-    self.camera_uniform.view_projection =
+    self.camera_uniform.projection =
       (OPENGL_TO_WGPU_MATRIX * projection * view_rotation * view_translation).to_cols_array_2d();
 
-    // Automatically writes the camera's matrix information in wgpu.
+    // Automatically write the data into the queue.
     queue.write_buffer(self.get_buffer(), 0, self.get_wgpu_raw_matrix());
   }
 
   ///
   /// Get the wgpu raw uniform contents to pass into the pipelne.
   ///
-  fn get_wgpu_raw_matrix(&self) -> &[u8] {
-    bytemuck::cast_slice(&self.camera_uniform.view_projection)
+  pub fn get_wgpu_raw_matrix(&self) -> &[u8] {
+    bytemuck::cast_slice(&self.camera_uniform.projection)
   }
 
   ///
@@ -183,6 +172,7 @@ impl Camera {
 
   ///
   /// Get the Camera's wgpu buffer.
+  ///
   pub fn get_buffer(&self) -> &wgpu::Buffer {
     &self.camera_buffer
   }
@@ -192,16 +182,38 @@ impl Camera {
   ///
   pub fn get_wgpu_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-      entries: &[wgpu::BindGroupLayoutEntry {
-        binding: 0,
-        visibility: wgpu::ShaderStages::VERTEX,
-        ty: wgpu::BindingType::Buffer {
-          ty: wgpu::BufferBindingType::Uniform,
-          has_dynamic_offset: false,
-          min_binding_size: None,
+      entries: &[
+        wgpu::BindGroupLayoutEntry {
+          binding: 0,
+          visibility: wgpu::ShaderStages::VERTEX,
+          ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+          },
+          count: None,
         },
-        count: None,
-      }],
+        wgpu::BindGroupLayoutEntry {
+          binding: 1,
+          visibility: wgpu::ShaderStages::VERTEX,
+          ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+          },
+          count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+          binding: 2,
+          visibility: wgpu::ShaderStages::VERTEX,
+          ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+          },
+          count: None,
+        },
+      ],
       label: Some("camera_bind_group_layout"),
     })
   }
