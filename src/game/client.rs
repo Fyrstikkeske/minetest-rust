@@ -10,7 +10,7 @@ use self::{
   client_connection::ClientConnection,
   keyboard::KeyboardController,
   mouse::MouseController,
-  render_engine::{instanced_render_matrix::InstancedRenderData, RenderEngine},
+  render_engine::{instanced_render_matrix::InstanceMatrix, RenderEngine},
   window_handler::WindowHandler,
 };
 
@@ -247,7 +247,7 @@ impl Client {
     // Not instanced.
     self.render_engine.render_mesh(
       "debug",
-      "tf.webp",
+      "tf.png",
       Vec3A::new(-1.0, 0.0, 0.0),
       Vec3A::new(0.0, -self.spin_test as f32, 0.0),
       Vec3A::new(1.0, 1.0, 1.0),
@@ -284,7 +284,7 @@ impl Client {
 
     for x in 0..TESTING_LIMIT {
       for z in 0..TESTING_LIMIT {
-        instancing.push(InstancedRenderData::new(
+        instancing.push(InstanceMatrix::new(
           vec3a(x as f32, z as f32, 0.0),
           vec3a(0.0, self.spin_test as f32, 0.0),
           vec3a(1.0, 1.0, 1.0),
@@ -294,7 +294,7 @@ impl Client {
 
     self
       .render_engine
-      .render_mesh_instanced("debug", &instancing);
+      .render_mesh_instanced("debug", "tf.png", &instancing);
 
     self.render_engine.process_instanced_render_calls();
 

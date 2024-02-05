@@ -34,7 +34,7 @@ use self::{
   camera::Camera,
   color_uniform::ColorUniform,
   depth_buffer::DepthBuffer,
-  instanced_render_matrix::InstancedRenderData,
+  instanced_render_matrix::{InstanceMatrix, InstancedMeshRenderData, InstancedModelRenderData},
   mesh_trs_uniform::MeshTRSUniform,
   model::Model,
   render_call::{ModelRenderCall, RenderCall},
@@ -83,7 +83,8 @@ pub struct RenderEngine {
   model_render_queue: VecDeque<ModelRenderCall>,
 
   // Instanced render queues and buffer.
-  instanced_mesh_render_queue: AHashMap<String, Vec<InstancedRenderData>>,
+  instanced_mesh_render_queue: AHashMap<String, InstancedMeshRenderData>,
+  instanced_model_render_queue: AHashMap<String, InstancedModelRenderData>,
   instance_buffer: Option<wgpu::Buffer>,
   instance_trigger: InstanceTrigger,
 
@@ -201,7 +202,7 @@ impl RenderEngine {
       vertex: wgpu::VertexState {
         buffers: &[
           Mesh::get_wgpu_descriptor(),
-          InstancedRenderData::get_wgpu_descriptor(),
+          InstanceMatrix::get_wgpu_descriptor(),
         ],
         module: &shader,
         entry_point: "vs_main",
@@ -312,6 +313,7 @@ impl RenderEngine {
 
       // Instanced render queues and buffer.
       instanced_mesh_render_queue: AHashMap::new(),
+      instanced_model_render_queue: AHashMap::new(),
       instance_buffer: None,
       instance_trigger,
 
@@ -369,13 +371,7 @@ impl RenderEngine {
       // * It's now owned by the render engine.
       new_render_engine.store_mesh(&new_mesh.get_name().clone(), new_mesh);
 
-      let new_texture = Texture::new(
-        "prototype_textures/tf.webp",
-        &new_render_engine.device,
-        &new_render_engine.queue,
-      );
-
-      new_render_engine.store_texture(&new_texture.get_name().clone(), new_texture);
+      new_render_engine.create_texture("./prototype_textures/tf.png");
 
       // ? BEGIN DEBUGGING MODEL LOADER ?
 
@@ -392,13 +388,7 @@ impl RenderEngine {
         .models
         .insert(chair_model.name.clone(), chair_model);
 
-      let chair_texture = Texture::new(
-        "prototype_textures/chair.png",
-        &new_render_engine.device,
-        &new_render_engine.queue,
-      );
-
-      new_render_engine.store_texture(&chair_texture.get_name().clone(), chair_texture);
+      new_render_engine.create_texture("./prototype_textures/chair.png");
 
       // ! SNOWMAN
 
@@ -413,13 +403,7 @@ impl RenderEngine {
         .models
         .insert(snowman.name.clone(), snowman);
 
-      let snowman_texture = Texture::new(
-        "./prototype_textures/snowman.png",
-        &new_render_engine.device,
-        &new_render_engine.queue,
-      );
-
-      new_render_engine.store_texture(&snowman_texture.get_name().clone(), snowman_texture);
+      new_render_engine.create_texture("./prototype_textures/snowman.png");
 
       // ? END DEBUGGING MODEL LOADER ?
     }
@@ -649,7 +633,7 @@ impl RenderEngine {
 
     // We set the instance buffer to be nothing for not instanced render calls.
     // This blank_data must match our lifetime.
-    let blank_data = InstancedRenderData::get_blank_data();
+    let blank_data = InstanceMatrix::get_blank_data();
     self.instance_buffer = Some(self.device.create_buffer_init(
       &wgpu::util::BufferInitDescriptor {
         label: Some("instance_buffer"),
@@ -772,7 +756,7 @@ impl RenderEngine {
 
     // We set the instance buffer to be nothing for not instanced render calls.
     // This blank_data must match our lifetime.
-    let blank_data = InstancedRenderData::get_blank_data();
+    let blank_data = InstanceMatrix::get_blank_data();
     self.instance_buffer = Some(self.device.create_buffer_init(
       &wgpu::util::BufferInitDescriptor {
         label: Some("instance_buffer"),
@@ -874,7 +858,8 @@ impl RenderEngine {
   fn process_instanced_mesh_render_call(
     &mut self,
     mesh_name: &String,
-    instance_data: &Vec<InstancedRenderData>,
+    texture_name: &String,
+    instance_data: &Vec<InstanceMatrix>,
   ) {
     // Do 4 very basic checks before attempting to render.
     if self.output.is_none() {
@@ -939,11 +924,6 @@ impl RenderEngine {
     // * Begin instanced render call.
     match self.meshes.get(mesh_name) {
       Some(mesh) => {
-        // ! NOTE: THIS IS WHERE EVERYTHING BROKE!
-        // ! REMINDER: THE PLACEHOLDER HAD TO BE REMOVED!
-        error!("fix the tf.webp placeholder");
-        let texture_name = "tf.webp";
-        // let texture_name = mesh.get_default_texture();
         match self.textures.get(texture_name) {
           Some(texture) => {
             // Now activate the used texture's bind group.
@@ -996,7 +976,7 @@ impl RenderEngine {
   ///
   /// Completely wipes out the instanced Mesh render queue and returns the current data to you.
   ///
-  fn take_mesh_instanced_data(&mut self) -> AHashMap<String, Vec<InstancedRenderData>> {
+  fn take_mesh_instanced_data(&mut self) -> AHashMap<String, InstancedMeshRenderData> {
     let mut temporary = AHashMap::new();
     swap(&mut self.instanced_mesh_render_queue, &mut temporary);
     temporary
@@ -1012,7 +992,11 @@ impl RenderEngine {
     // Iterate through all the instanced data.
     for (mesh_name, instance_data) in instanced_key_value_set {
       self.initialize_render();
-      self.process_instanced_mesh_render_call(&mesh_name, &instance_data);
+      self.process_instanced_mesh_render_call(
+        &mesh_name,
+        instance_data.borrow_texture_name(),
+        instance_data.borrow_data(),
+      );
       self.submit_render();
     }
   }
@@ -1076,9 +1060,17 @@ impl RenderEngine {
   }
 
   ///
+  /// Automatically create a texture in the RenderEngine from a path.
+  ///
+  pub fn create_texture(&mut self, path: &str) {
+    self.store_texture(Texture::new(path, &self.device, &self.queue));
+  }
+
+  ///
   /// Store a Texture into the render engine for usage.
   ///
-  pub fn store_texture(&mut self, name: &str, texture: Texture) {
+  fn store_texture(&mut self, texture: Texture) {
+    let name = texture.get_name().clone();
     self.textures.insert(name.to_owned(), texture);
   }
 
@@ -1128,36 +1120,52 @@ impl RenderEngine {
   /// This is less efficient than render_mesh_instanced because
   /// it needs to check if the key exists every time.
   ///
+  /// If this model instance has already been called, it ignores your texture.
+  ///
   pub fn render_mesh_instanced_single(
     &mut self,
     mesh_name: &str,
+    texture_name: &str,
     translation: Vec3A,
     rotation: Vec3A,
     scale: Vec3A,
   ) {
     // If the key does not exist, we create it.
-    let current_vec = self
+    let current_mesh_instance_render_data = self
       .instanced_mesh_render_queue
       .entry(mesh_name.to_string())
-      .or_default();
+      .or_insert(InstancedMeshRenderData::new(texture_name));
 
-    // Now push one into the vector.
-    current_vec.push(InstancedRenderData::new(translation, rotation, scale));
+    // Now push one into the struct.
+    current_mesh_instance_render_data.push_single(translation, rotation, scale);
   }
 
   ///
   /// Push multiple instance calls into the instance queue.
   ///
-  pub fn render_mesh_instanced(&mut self, mesh_name: &str, instancing: &Vec<InstancedRenderData>) {
+  /// If this model instance has already been called, it ignores your texture.
+  ///
+  pub fn render_mesh_instanced(
+    &mut self,
+    mesh_name: &str,
+    texture_name: &str,
+    instancing: &Vec<InstanceMatrix>,
+  ) {
     // If the key does not exist, we create it.
-    let current_vec = self
+    let current_mesh_instance_render_data = self
       .instanced_mesh_render_queue
       .entry(mesh_name.to_string())
-      .or_default();
+      .or_insert(InstancedMeshRenderData::new(texture_name));
 
-    // Now extend multiple into the vector.
-    current_vec.extend(instancing);
+    // Now extend multiple into the struct.
+    current_mesh_instance_render_data.push(instancing);
   }
+
+  // pub fn render_model_instanced_single(
+  //   &mut self,
+  //   model_name: &str,
+
+  // )
 
   ///
   /// Grab the Camera mutably to do things with it.
