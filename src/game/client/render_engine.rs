@@ -767,12 +767,12 @@ impl RenderEngine {
 
     let not_instanced_render_call = self.model_render_queue.pop_front().unwrap();
 
-    let mesh_name = not_instanced_render_call.get_mesh_name();
+    let mesh_name = not_instanced_render_call.get_model_name();
 
     match self.models.get(mesh_name) {
       Some(model) => {
         let meshes = &model.meshes;
-        let texture_names = not_instanced_render_call.get_texture_name();
+        let texture_names = not_instanced_render_call.get_texture_names();
 
         // todo: in the future make this just insert some default texture.
         let meshes_length = meshes.len();
@@ -781,6 +781,9 @@ impl RenderEngine {
           error!("RenderEngine: Attempted not instanced render on model [{}] with unmatched texture to model buffers.
           Required: [{}]
           Received: [{}]", model.name, meshes_length, textures_length);
+
+          // Do not attempt to do this.
+          return;
         }
 
         // We want to iterate them at the same time, zip it.
@@ -850,10 +853,10 @@ impl RenderEngine {
   }
 
   ///
-  /// Process out a batched Mesh render call.
+  /// Process out an instanced Mesh render call.
   ///
   /// Due to the implementation nature, this needs to be run on each
-  /// mesh in sequence.
+  /// Mesh in sequence.
   ///
   fn process_instanced_mesh_render_call(
     &mut self,
@@ -938,6 +941,7 @@ impl RenderEngine {
                 usage: wgpu::BufferUsages::VERTEX,
               },
             ));
+
             self
               .mesh_trs_uniform
               .build_mesh_projection_matrix(&self.device, &self.queue);
@@ -985,7 +989,7 @@ impl RenderEngine {
   ///
   /// Process and submit all the instanced Mesh render calls.
   ///
-  pub fn process_instanced_render_calls(&mut self) {
+  pub fn process_instanced_mesh_render_calls(&mut self) {
     // ! This is an absolute brute force method. Perhaps there's a more elegant way?
     let instanced_key_value_set = self.take_mesh_instanced_data();
 
@@ -995,6 +999,177 @@ impl RenderEngine {
       self.process_instanced_mesh_render_call(
         &mesh_name,
         instance_data.borrow_texture_name(),
+        instance_data.borrow_data(),
+      );
+      self.submit_render();
+    }
+  }
+
+  ///
+  /// Process out an instanced Model render call.
+  ///
+  /// Due to the implementation nature, this needs to be run on each
+  /// Model in sequence, and then for each Model Mesh Buffer in sequence.
+  ///
+  fn process_instanced_model_render_call(
+    &mut self,
+    model_name: &String,
+    textures: &[String],
+    instance_data: &Vec<InstanceMatrix>,
+  ) {
+    // Do 4 very basic checks before attempting to render.
+    if self.output.is_none() {
+      panic!("RenderEngine: attempted to render with no output!");
+    }
+
+    if self.command_encoder.is_none() {
+      panic!("RenderEngine: attempted render with no command encoder!");
+    }
+
+    if self.texture_view.is_none() {
+      panic!("RenderEngine: attempted to render with no texture view!");
+    }
+
+    if self.depth_buffer.is_none() {
+      panic!("RenderEngine: attempted to render with no depth buffer!");
+    }
+
+    // Begin a wgpu render pass
+    let mut render_pass =
+      self
+        .command_encoder
+        .as_mut()
+        .unwrap()
+        .begin_render_pass(&wgpu::RenderPassDescriptor {
+          // The label of this render pass.
+          label: Some("minetest_instanced_model_render_pass"),
+
+          // color attachments is a array of pipeline render pass color attachments.
+          color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: self.texture_view.as_ref().unwrap(),
+            resolve_target: None,
+            ops: wgpu::Operations {
+              load: wgpu::LoadOp::Load,
+              store: wgpu::StoreOp::Store,
+            },
+          })],
+
+          depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: self.depth_buffer.as_ref().unwrap().get_view(),
+            depth_ops: Some(wgpu::Operations {
+              load: wgpu::LoadOp::Load,
+              store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+          }),
+          occlusion_query_set: None,
+          timestamp_writes: None,
+        });
+
+    render_pass.set_pipeline(&self.render_pipeline);
+
+    // Activate the camera's bind group.
+    render_pass.set_bind_group(1, self.camera.get_bind_group(), &[]);
+
+    // Activate the color bind group.
+    render_pass.set_bind_group(2, self.color_uniform.get_bind_group(), &[]);
+
+    // Enable instancing in shader.
+    self.instance_trigger.trigger_on(&self.queue);
+
+    // * Begin instanced render call.
+    match self.models.get(model_name) {
+      Some(model) => {
+        let meshes = &model.meshes;
+
+        // todo: in the future make this just insert some default texture.
+        let meshes_length = meshes.len();
+        let textures_length = textures.len();
+
+        if meshes_length != textures_length {
+          error!("RenderEngine: Attempted not instanced render on model [{}] with unmatched texture to model buffers.
+          Required: [{}]
+          Received: [{}]", model.name, meshes_length, textures_length);
+
+          // Do not attempt to do this.
+          return;
+        }
+
+        // We only have to set the instance Buffer once.
+        self.instance_buffer = Some(self.device.create_buffer_init(
+          &wgpu::util::BufferInitDescriptor {
+            label: Some("instance_buffer"),
+            contents: bytemuck::cast_slice(instance_data),
+            usage: wgpu::BufferUsages::VERTEX,
+          },
+        ));
+
+        for (mesh, texture_name) in meshes.iter().zip(textures) {
+          match self.textures.get(texture_name) {
+            Some(texture) => {
+              // Now activate the used texture's bind group.
+              render_pass.set_bind_group(0, texture.get_wgpu_diffuse_bind_group(), &[]);
+
+              // Now we're going to bind the pipeline to the Mesh and draw it.
+
+              self
+                .mesh_trs_uniform
+                .build_mesh_projection_matrix(&self.device, &self.queue);
+
+              render_pass.set_vertex_buffer(0, mesh.get_wgpu_vertex_buffer().slice(..));
+              render_pass.set_vertex_buffer(1, self.instance_buffer.as_ref().unwrap().slice(..));
+
+              render_pass.set_index_buffer(
+                mesh.get_wgpu_index_buffer().slice(..),
+                wgpu::IndexFormat::Uint32,
+              );
+
+              render_pass.draw_indexed(
+                0..mesh.get_number_of_indices(),
+                0,
+                0..(instance_data.len() as u32),
+              );
+            }
+            None => {
+              error!(
+                "render_engine: {} is not a stored Texture. [instanced]",
+                texture_name
+              );
+            }
+          }
+        }
+      }
+      None => {
+        error!(
+          "render_engine: {} is not a stored Model. [instanced]",
+          model_name
+        );
+      }
+    }
+  }
+
+  ///
+  /// Completely wipes out the instanced Model render queue and returns the current data to you.
+  ///
+  fn take_model_instanced_data(&mut self) -> AHashMap<String, InstancedModelRenderData> {
+    let mut temporary = AHashMap::new();
+    swap(&mut self.instanced_model_render_queue, &mut temporary);
+    temporary
+  }
+
+  ///
+  /// Process and submit all the instanced Model render calls.
+  ///
+  pub fn process_instanced_model_render_calls(&mut self) {
+    // ! This is an absolute brute force method. Perhaps there's a more elegant way?
+    let instanced_key_value_set = self.take_model_instanced_data();
+
+    // Iterate through all the instanced data.
+    for (mesh_name, instance_data) in instanced_key_value_set {
+      self.initialize_render();
+      self.process_instanced_model_render_call(
+        &mesh_name,
+        instance_data.borrow_texture_names(),
         instance_data.borrow_data(),
       );
       self.submit_render();
@@ -1115,12 +1290,12 @@ impl RenderEngine {
   }
 
   ///
-  /// Push one instance call into the instance queue.
+  /// Push one instance call into the Mesh instance queue.
   ///
   /// This is less efficient than render_mesh_instanced because
   /// it needs to check if the key exists every time.
   ///
-  /// If this model instance has already been called, it ignores your texture.
+  /// If this Mesh instance has already been called, it ignores your texture.
   ///
   pub fn render_mesh_instanced_single(
     &mut self,
@@ -1141,9 +1316,9 @@ impl RenderEngine {
   }
 
   ///
-  /// Push multiple instance calls into the instance queue.
+  /// Push multiple Mesh instance calls into the instance queue.
   ///
-  /// If this model instance has already been called, it ignores your texture.
+  /// If this Mesh instance has already been called, it ignores your texture.
   ///
   pub fn render_mesh_instanced(
     &mut self,
@@ -1161,11 +1336,52 @@ impl RenderEngine {
     current_mesh_instance_render_data.push(instancing);
   }
 
-  // pub fn render_model_instanced_single(
-  //   &mut self,
-  //   model_name: &str,
+  ///
+  /// Push one instance call into the Model instance queue.
+  ///
+  /// This is less efficient than render_model_instanced because
+  /// it needs to check if the key exists every time.
+  ///
+  /// If this Model instance has already been called, it ignores your texture.
+  ///
+  pub fn render_model_instanced_single(
+    &mut self,
+    model_name: &str,
+    texture_names: &[String],
+    translation: Vec3A,
+    rotation: Vec3A,
+    scale: Vec3A,
+  ) {
+    // If the key does not exist, we create it.
+    let current_model_instance_render_data = self
+      .instanced_model_render_queue
+      .entry(model_name.to_string())
+      .or_insert(InstancedModelRenderData::new(texture_names));
 
-  // )
+    // Now push one into the struct.
+    current_model_instance_render_data.push_single(translation, rotation, scale);
+  }
+
+  ///
+  /// Push multiple Mesh instance calls into the instance queue.
+  ///
+  /// If this Model instance has already been called, it ignores your texture.
+  ///
+  pub fn render_model_instanced(
+    &mut self,
+    model_name: &str,
+    texture_names: &[String],
+    instancing: &Vec<InstanceMatrix>,
+  ) {
+    // If the key does not exist, we create it.
+    let current_model_instance_render_data = self
+      .instanced_model_render_queue
+      .entry(model_name.to_string())
+      .or_insert(InstancedModelRenderData::new(texture_names));
+
+    // Now extend multiple into the struct.
+    current_model_instance_render_data.push(instancing);
+  }
 
   ///
   /// Grab the Camera mutably to do things with it.

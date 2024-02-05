@@ -280,11 +280,13 @@ impl Client {
 
     // * Begin instanced.
 
-    let mut instancing = Vec::with_capacity(TESTING_LIMIT * TESTING_LIMIT);
+    // ? Trollface hexagon thing.
+
+    let mut instancing_tf = Vec::with_capacity(TESTING_LIMIT * TESTING_LIMIT);
 
     for x in 0..TESTING_LIMIT {
       for z in 0..TESTING_LIMIT {
-        instancing.push(InstanceMatrix::new(
+        instancing_tf.push(InstanceMatrix::new(
           vec3a(x as f32, z as f32, 0.0),
           vec3a(0.0, self.spin_test as f32, 0.0),
           vec3a(1.0, 1.0, 1.0),
@@ -294,9 +296,39 @@ impl Client {
 
     self
       .render_engine
-      .render_mesh_instanced("debug", "tf.png", &instancing);
+      .render_mesh_instanced("debug", "tf.png", &instancing_tf);
 
-    self.render_engine.process_instanced_render_calls();
+    // ? Snowman.
+
+    let mut instancing_tf = Vec::with_capacity(TESTING_LIMIT * TESTING_LIMIT);
+
+    let mut i = 0.0;
+    for x in 0..TESTING_LIMIT {
+      for z in 0..TESTING_LIMIT {
+        instancing_tf.push(InstanceMatrix::new(
+          vec3a(x as f32, 0.0, z as f32),
+          vec3a(0.0, self.spin_test as f32 + i, 0.0),
+          vec3a(1.0, 1.0, 1.0),
+        ));
+        i += 0.05;
+      }
+    }
+
+    let snowman_texture = "snowman.png".to_string();
+    self.render_engine.render_model_instanced(
+      "snowman.obj",
+      &[
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+      ],
+      &instancing_tf,
+    );
+
+    self.render_engine.process_instanced_mesh_render_calls();
+    self.render_engine.process_instanced_model_render_calls();
 
     // ? End rendering calls.
 
