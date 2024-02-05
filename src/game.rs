@@ -244,9 +244,9 @@ impl Game {
       };
       // println!("Debug {}: {}", time_measurement, self.current_fps)
       if let Some(client) = &mut self.client {
-        let mut new_title = "minetest | ".to_string();
-        new_title.push_str(format!("{:.1}", fps).as_str());
-        new_title.push_str(" FPS");
+        let mut new_title = "AMONGUSTESTLOLOLOLOLOLOLOLOLOLOLOLOLOL | ".to_string();
+        new_title.push_str(format!("{:.1}", fps * 3600.).as_str());
+        new_title.push_str(" FPH");
         client.get_window_handler().set_title(&new_title);
       }
     }
