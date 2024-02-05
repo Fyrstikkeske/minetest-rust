@@ -4,7 +4,7 @@ mod mouse;
 mod render_engine;
 mod window_handler;
 
-use glam::Vec3A;
+use glam::{vec3a, Vec3A};
 
 use self::{
   client_connection::ClientConnection,
@@ -13,6 +13,8 @@ use self::{
   render_engine::{instanced_render_matrix::InstancedRenderData, RenderEngine},
   window_handler::WindowHandler,
 };
+
+const TESTING_LIMIT: usize = 100;
 
 use super::lua_engine::LuaEngine;
 
@@ -162,38 +164,40 @@ impl Client {
 
     let mut camera_pos = *camera.get_position();
 
+    let move_speed = delta as f32 * 10.0;
+
     // * A very simple test to check the buffer in the shader.
 
     // If jordan4ibanez sees what i did here he would either call the optimazation police after me or die of cringe.
     if self.keyboard.is_key_down("A") {
         let camera_rot = self.render_engine.get_camera().get_rotation();
-      camera_pos.z += delta as f32 * f32::sin(camera_rot.y);
-      camera_pos.x += delta as f32 * f32::cos(camera_rot.y);
+      camera_pos.z += move_speed * f32::sin(camera_rot.y);
+      camera_pos.x += move_speed * f32::cos(camera_rot.y);
     }
     if self.keyboard.is_key_down("D") {
         let camera_rot = self.render_engine.get_camera().get_rotation();
-      camera_pos.z -= delta as f32 * f32::sin(camera_rot.y);
-      camera_pos.x -= delta as f32 * f32::cos(camera_rot.y);
+      camera_pos.z -= move_speed * f32::sin(camera_rot.y);
+      camera_pos.x -= move_speed * f32::cos(camera_rot.y);
     }
 
     if self.keyboard.is_key_down("W") {
     	let camera_rot = self.render_engine.get_camera().get_rotation();
-      camera_pos.z += delta as f32 * f32::cos(-camera_rot.y);
-      camera_pos.x += delta as f32 * f32::sin(-camera_rot.y);
-      camera_pos.y += delta as f32 * f32::sin(camera_rot.x);
+      camera_pos.z += move_speed * f32::cos(-camera_rot.y);
+      camera_pos.x += move_speed * f32::sin(-camera_rot.y);
+      camera_pos.y += move_speed * f32::sin(camera_rot.x);
     }
     if self.keyboard.is_key_down("S") {
         let camera_rot = self.render_engine.get_camera().get_rotation();
-      camera_pos.z -= delta as f32 * f32::cos(-camera_rot.y);
-      camera_pos.x -= delta as f32 * f32::sin(-camera_rot.y);
-      camera_pos.y -= delta as f32 * f32::sin(camera_rot.x);
+      camera_pos.z -= move_speed * f32::cos(-camera_rot.y);
+      camera_pos.x -= move_speed * f32::sin(-camera_rot.y);
+      camera_pos.y -= move_speed * f32::sin(camera_rot.x);
     }
 
     if self.keyboard.is_key_down("Left Shift") {
-      camera_pos.y += delta as f32;
+      camera_pos.y += move_speed;
     }
     if self.keyboard.is_key_down("Space") {
-      camera_pos.y -= delta as f32;
+      camera_pos.y -= move_speed;
     }
 
     // println!("camera pos {:?}", camera_pos);
@@ -216,35 +220,87 @@ impl Client {
     // Update the RenderEngine with the WindowHandler.
     self.render_engine.update(&self.window_handler, delta);
 
-    // Now render everything. 3 steps for now.
+    // Now render everything.
 
     self.spin_test += delta*0.1;
 
-    self.render_engine.initialize_render(&self.window_handler);
+    // println!("spin  {}", self.spin_test);
+
+    // Update the camera's projection matrix.
+    self
+      .render_engine
+      .update_camera_matrix(&self.window_handler);
+
+    // Now create the framebuffer.
+    self.render_engine.generate_frame_buffer();
+
+    // Clear it, it contains old data.
+
+    self.render_engine.clear_buffers(true, true);
+
+    // ? Begin rendering.
+
+    self.render_engine.initialize_render();
+
+    // * Begin not instanced.
 
     // Not instanced.
     self.render_engine.render_mesh(
       "debug",
-      "tf.jpg",
-      Vec3A::new(0.0, 0.0, 0.0),
-      Vec3A::new(0.0, self.spin_test as f32, 0.0),
-      Vec3A::new(0.0, 0.0, 0.0),
+      "tf.webp",
+      Vec3A::new(-1.0, 0.0, 0.0),
+      Vec3A::new(0.0, -self.spin_test as f32, 0.0),
+      Vec3A::new(1.0, 1.0, 1.0),
     );
 
-    // Instanced.
-    let mut instancing: Vec<InstancedRenderData> = vec![];
+    self.render_engine.render_model(
+      "chair.obj",
+      vec!["chair.png".to_string()],
+      Vec3A::new(-2.0, 0.0, 0.0),
+      Vec3A::new(0.0, -self.spin_test as f32, 0.0),
+      Vec3A::new(1.0, 1.0, 1.0),
+    );
 
-    for x in 0..10 {
-      for z in 0..10 {}
+    let snowman_texture = "snowman.png".to_string();
+    self.render_engine.render_model(
+      "snowman.obj",
+      vec![
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+        snowman_texture.clone(),
+      ],
+      Vec3A::new(-3.0, 0.0, 0.0),
+      Vec3A::new(0.0, -self.spin_test as f32, 0.0),
+      Vec3A::new(1.0, 1.0, 1.0),
+    );
+
+    self.render_engine.process_not_instanced_render_calls();
+
+    // * Begin instanced.
+
+    let mut instancing = Vec::with_capacity(TESTING_LIMIT * TESTING_LIMIT);
+
+    for x in 0..TESTING_LIMIT {
+      for z in 0..TESTING_LIMIT {
+        instancing.push(InstancedRenderData::new(
+          vec3a(x as f32, z as f32, 0.0),
+          vec3a(0.0, self.spin_test as f32, 0.0),
+          vec3a(1.0, 1.0, 1.0),
+        ));
+      }
     }
 
     self
       .render_engine
-      .render_mesh_instanced("debug", &mut instancing);
+      .render_mesh_instanced("debug", &instancing);
 
-    // println!("spin  {}", self.spin_test);
-    self.render_engine.process_render_calls();
-    self.render_engine.finalize_render();
+    self.render_engine.process_instanced_render_calls();
+
+    // ? End rendering calls.
+
+    self.render_engine.show_and_destroy_frame_buffer();
 
     // This will need to run a close event for the client engine and send out a close event to the internal server.
     if self.window_handler.should_quit() {

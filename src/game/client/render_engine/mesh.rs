@@ -49,24 +49,50 @@ impl Vertex {
 #[derive(Debug)]
 pub struct Mesh {
   name: String,
-  default_texture: String,
   vertex_data: Vec<Vertex>,
   index_data: Vec<u32>,
   vertex_buffer: Option<wgpu::Buffer>,
   index_buffer: Option<wgpu::Buffer>,
   number_of_indices: u32,
+  material_id: u32,
 }
 
 impl Mesh {
-  pub fn new(name: &str, default_texture: &str) -> Self {
+  pub fn new(name: &str) -> Self {
     Mesh {
       name: name.to_owned(),
-      default_texture: default_texture.to_owned(),
       vertex_data: vec![],
       index_data: vec![],
       vertex_buffer: None,
       index_buffer: None,
       number_of_indices: 0,
+      material_id: 0,
+    }
+  }
+
+  ///
+  /// New from existing is used explicitly for models.
+  ///
+  /// obj and gltf.
+  ///
+  pub fn new_from_existing(
+    name: &str,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    number_of_indices: u32,
+    material_id: u32,
+  ) -> Mesh {
+    // Why yes, this is allocating 2 blank vectors.
+    // If you would like to see why I didn't turn them into an option
+    // feel free to try that.
+    Mesh {
+      name: name.to_owned(),
+      vertex_data: vec![],
+      index_data: vec![],
+      vertex_buffer: Some(vertex_buffer),
+      index_buffer: Some(index_buffer),
+      number_of_indices,
+      material_id,
     }
   }
 
@@ -152,15 +178,6 @@ impl Mesh {
   ///
   pub fn push_index_vec(&mut self, index_vec: &mut Vec<u32>) {
     self.index_data.append(index_vec);
-  }
-
-  ///
-  /// Get the default texture used for the mesh.
-  ///
-  /// ! This is a placeholder for now.
-  ///
-  pub fn get_default_texture(&self) -> &String {
-    &self.default_texture
   }
 
   ///
@@ -298,7 +315,7 @@ pub fn generate_mesh(
 
   // ! this is just a test, there is probably a much better way to to this!
   // ! What you're seeing is a raw prototype.
-  let mut mesh = Mesh::new("testing", "testing");
+  let mut mesh = Mesh::new("testing");
 
   // Can use one range iterator, they are all supposed to be equal.
   for i in 0..positions_components {
