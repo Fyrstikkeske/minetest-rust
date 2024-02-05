@@ -1,4 +1,9 @@
-use std::{fs, path::Path};
+use std::{
+  convert::Infallible,
+  fs::{self, File},
+  io::BufReader,
+  path::Path,
+};
 
 ///
 /// A micro helper function.
@@ -43,6 +48,14 @@ pub fn file_name_from_path(path: &str) -> String {
 }
 
 ///
+/// Get the file extension from the path provided.
+///
+pub fn file_extension_from_path(path: &str) -> &str {
+  panic_if_no_path(path, "file extension to String");
+  Path::new(path).extension().unwrap().to_str().unwrap()
+}
+
+///
 /// This will first check if the file exists.
 ///
 /// Next it will automatically parse the file into a String.
@@ -53,6 +66,13 @@ pub fn read_file_to_string(path: &str) -> String {
 }
 
 ///
+/// This will attempt to parse the file into a string.
+///
+pub fn read_file_to_string_result(path: &str) -> Result<String, Infallible> {
+  fs::read_to_string(path).unwrap().parse()
+}
+
+///
 /// This will first check if the file exists.
 ///
 /// Next it will automatically parse the file into a byte Vec.
@@ -60,4 +80,14 @@ pub fn read_file_to_string(path: &str) -> String {
 pub fn read_file_to_byte_vec(path: &str) -> Vec<u8> {
   panic_if_no_path(path, "bytes");
   fs::read(path).unwrap()
+}
+
+///
+/// This will first check if the file exists.
+///
+/// Next it will automatically parse the file into a BufReader<File>
+///
+pub fn read_path_to_buf_read(path: &str) -> BufReader<File> {
+  panic_if_no_path(path, "BufRead");
+  BufReader::new(File::open(path).unwrap())
 }

@@ -1,0 +1,12 @@
+[credits]
+
+[minetest_sam.gltf]
+minetest_sam = " was from experiments within minetest C++ GLTF development"
+a_copy = "of sam was kindly given to the project by core dev Lars"
+
+[chair.obj]
+chair = "was kindly to be allowed for testing from dibesfer in the minetest discord"
+
+[thanks]
+thank_you = "to all who helped make model developement on obj and gltf possible"
+it_has = "made development much quicker and it can not be expressed in text the gratitude I have for it"
