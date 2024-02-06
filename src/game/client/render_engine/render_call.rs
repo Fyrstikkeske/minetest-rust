@@ -3,9 +3,9 @@ use glam::Vec3A;
 ///
 /// A container to handle unbatched draw calls.
 ///
-pub struct RenderCall {
-  mesh_name: String,
-  texture_name: String,
+pub struct MeshRenderCall {
+  mesh_id: u64,
+  texture_id: u64,
   translation: Vec3A,
   rotation: Vec3A,
   scale: Vec3A,
@@ -16,17 +16,17 @@ pub struct RenderCall {
 ///
 /// If you want to batch it, see BatchRenderCall.
 ///
-impl RenderCall {
+impl MeshRenderCall {
   pub fn new(
-    mesh_name: &str,
-    texture_name: &str,
+    mesh_id: u64,
+    texture_id: u64,
     translation: Vec3A,
     rotation: Vec3A,
     scale: Vec3A,
   ) -> Self {
-    RenderCall {
-      mesh_name: mesh_name.to_owned(),
-      texture_name: texture_name.to_owned(),
+    MeshRenderCall {
+      mesh_id,
+      texture_id,
       translation,
       rotation,
       scale,
@@ -34,35 +34,35 @@ impl RenderCall {
   }
 
   ///
-  /// Get the RenderCall's mesh name.
+  /// Get the MeshRenderCall's Mesh ID.
   ///
-  pub fn get_mesh_name(&self) -> &String {
-    &self.mesh_name
+  pub fn get_mesh_id(&self) -> u64 {
+    self.mesh_id
   }
 
   ///
-  /// Get the texture that will be used for this RenderCall.
+  /// Get the Texture ID that will be used for this MeshRenderCall.
   ///
-  pub fn get_texture_name(&self) -> &String {
-    &self.texture_name
+  pub fn get_texture_id(&self) -> u64 {
+    self.texture_id
   }
 
   ///
-  /// Get the translation of the RenderCall.
+  /// Get the translation of the MeshRenderCall.
   ///
   pub fn get_translation(&self) -> &Vec3A {
     &self.translation
   }
 
   ///
-  /// Get the rotation of the RenderCall.
+  /// Get the rotation of the MeshRenderCall.
   ///
   pub fn get_rotation(&self) -> &Vec3A {
     &self.rotation
   }
 
   ///
-  /// Get the scale of the RenderCall.
+  /// Get the scale of the MeshRenderCall.
   ///
   pub fn get_scale(&self) -> &Vec3A {
     &self.scale
@@ -70,31 +70,28 @@ impl RenderCall {
 }
 
 ///
-/// ! fixme: this was very rushed.
-///
-/// Unbatched render call struct.
+/// Unbatched render call struct for Model.
 ///
 /// If you want to batch it, see BatchRenderCall.
 ///
-///
 pub struct ModelRenderCall {
-  model_name: String,
-  texture_names: Vec<String>,
+  model_id: u64,
+  texture_ids: Vec<u64>,
   translation: Vec3A,
   rotation: Vec3A,
   scale: Vec3A,
 }
 impl ModelRenderCall {
   pub fn new(
-    mesh_name: &str,
-    texture_names: Vec<String>,
+    model_id: u64,
+    texture_ids: Vec<u64>,
     translation: Vec3A,
     rotation: Vec3A,
     scale: Vec3A,
   ) -> Self {
     ModelRenderCall {
-      model_name: mesh_name.to_owned(),
-      texture_names,
+      model_id,
+      texture_ids,
       translation,
       rotation,
       scale,
@@ -102,35 +99,35 @@ impl ModelRenderCall {
   }
 
   ///
-  /// Get the ModelRenderCall's name.
+  /// Get the ModelRenderCall's Model ID.
   ///
-  pub fn get_model_name(&self) -> &String {
-    &self.model_name
+  pub fn get_model_id(&self) -> u64 {
+    self.model_id
   }
 
   ///
-  /// Get the texture that will be used for this RenderCall.
+  /// Get the Texture IDs that will be used for this ModelRenderCall.
   ///
-  pub fn get_texture_names(&self) -> &Vec<String> {
-    &self.texture_names
+  pub fn get_texture_ids(&self) -> &Vec<u64> {
+    &self.texture_ids
   }
 
   ///
-  /// Get the translation of the RenderCall.
+  /// Get the translation of the ModelRenderCall.
   ///
   pub fn get_translation(&self) -> &Vec3A {
     &self.translation
   }
 
   ///
-  /// Get the rotation of the RenderCall.
+  /// Get the rotation of the ModelRenderCall.
   ///
   pub fn get_rotation(&self) -> &Vec3A {
     &self.rotation
   }
 
   ///
-  /// Get the scale of the RenderCall.
+  /// Get the scale of the ModelRenderCall.
   ///
   pub fn get_scale(&self) -> &Vec3A {
     &self.scale
