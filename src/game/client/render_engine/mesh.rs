@@ -184,24 +184,26 @@ impl Mesh {
   /// Grab the wgpu vertex buffer for rendering.
   ///
   pub fn get_wgpu_vertex_buffer(&self) -> &wgpu::Buffer {
-    self.vertex_buffer.as_ref().unwrap_or_else(|| {
-      panic!(
+    match self.vertex_buffer.as_ref() {
+      Some(vertex_buffer) => vertex_buffer,
+      None => panic!(
         "Mesh: vertex buffer was never attached for Mesh [{}].",
         self.name
-      )
-    })
+      ),
+    }
   }
 
   ///
   /// Grab the wgpu index buffer for rendering.
   ///
   pub fn get_wgpu_index_buffer(&self) -> &wgpu::Buffer {
-    self.index_buffer.as_ref().unwrap_or_else(|| {
-      panic!(
+    match self.index_buffer.as_ref() {
+      Some(index_buffer) => index_buffer,
+      None => panic!(
         "Mesh: index buffer was never attached for Mesh [{}].",
         self.name
-      )
-    })
+      ),
+    }
   }
 
   ///
@@ -268,9 +270,9 @@ impl Mesh {
 /// This is primarily aimed at procedurally generated meshes, like map visual data.
 ///
 pub fn generate_mesh(
-  positions: &Vec<f32>,
-  texture_coordinates: &Vec<f32>,
-  colors: &Vec<f32>,
+  positions: &[f32],
+  texture_coordinates: &[f32],
+  colors: &[f32],
 ) -> Result<Mesh, String> {
   // We want to check all the data to ensure the logic is sound.
 
@@ -319,29 +321,34 @@ pub fn generate_mesh(
 
   // Can use one range iterator, they are all supposed to be equal.
   for i in 0..positions_components {
-    // todo Instead of unwrapping this in the future, we should match.
-
     let position_base_offset = i * POSITION_COMPONENTS;
 
-    let position_slice: [f32; POSITION_COMPONENTS] = positions
+    let position_slice: [f32; POSITION_COMPONENTS] = match positions
       [position_base_offset..position_base_offset + POSITION_COMPONENTS]
       .try_into()
-      .unwrap();
+    {
+      Ok(slice) => slice,
+      Err(e) => panic!("Mesh: Failed to convert position data. {}", e),
+    };
 
     let texture_coordinates_base_offset = i * TEXTURE_COORDINATE_COMPONENTS;
 
-    let texture_coordinates_slice: [f32; TEXTURE_COORDINATE_COMPONENTS] = texture_coordinates
+    let texture_coordinates_slice: [f32; TEXTURE_COORDINATE_COMPONENTS] = match texture_coordinates
       [texture_coordinates_base_offset
         ..texture_coordinates_base_offset + TEXTURE_COORDINATE_COMPONENTS]
       .try_into()
-      .unwrap();
+    {
+      Ok(slice) => slice,
+      Err(e) => panic!("Mesh: Failed to convert texture coordinate data. {}", e),
+    };
 
     let color_base_offset = i * COLOR_COMPONENTS;
 
-    let color_slice: [f32; COLOR_COMPONENTS] = colors
-      [color_base_offset..color_base_offset + COLOR_COMPONENTS]
-      .try_into()
-      .unwrap();
+    let color_slice: [f32; COLOR_COMPONENTS] =
+      match colors[color_base_offset..color_base_offset + COLOR_COMPONENTS].try_into() {
+        Ok(slice) => slice,
+        Err(e) => panic!("Mesh: Failed to convert color data. {}", e),
+      };
 
     mesh.push_vertex(Vertex {
       position: position_slice,
@@ -373,7 +380,13 @@ mod tests {
       let colors = vec![3.0, 4.0, 5.0];
       let test_mesh = generate_mesh(&positions, &texture_coordinates, &colors);
       assert!(test_mesh.is_ok());
-      println!("{:?}", test_mesh.unwrap());
+      println!(
+        "{:?}",
+        match test_mesh {
+          Ok(good) => good,
+          Err(e) => panic!("Unit test is broken. {}", e),
+        }
+      );
     }
 
     {
@@ -382,7 +395,13 @@ mod tests {
       let colors = vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
       let test_mesh = generate_mesh(&positions, &texture_coordinates, &colors);
       assert!(test_mesh.is_ok());
-      println!("{:?}", test_mesh.unwrap());
+      println!(
+        "{:?}",
+        match test_mesh {
+          Ok(good) => good,
+          Err(e) => panic!("Unit test is broken. {}", e),
+        }
+      );
     }
   }
 

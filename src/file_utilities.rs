@@ -1,5 +1,4 @@
 use std::{
-  convert::Infallible,
   fs::{self, File},
   io::BufReader,
   path::Path,
@@ -23,71 +22,69 @@ pub fn file_exists(path: &str) -> bool {
 }
 
 ///
-/// This is a very lazy function but it cleans up implementation.
+/// Get a file name from the path provided.
 ///
-fn panic_if_no_path(path: &str, read_to_type: &str) {
-  if !file_exists(path) {
-    panic!(
-      "minetest: tried to read file [{}] into [{}] which doesn't exist!",
-      path, read_to_type
-    )
+pub fn file_name_from_path(path: &str) -> Result<&str, &str> {
+  let new_path = Path::new(path);
+
+  if !new_path.exists() {
+    return Err("File name from file path. Path does not exist.");
+  }
+
+  match new_path.file_name() {
+    Some(os_str) => match os_str.to_str() {
+      Some(final_str) => Ok(final_str),
+      None => Err("File name from file path. Failed to convert OsStr to str."),
+    },
+    None => Err("File name from file path. Failed to parse OS Path str."),
   }
 }
 
 ///
-/// Get the file name from the path provided.
+/// Get a file extension from the path provided.
 ///
-pub fn file_name_from_path(path: &str) -> String {
-  panic_if_no_path(path, "file name String");
-  Path::new(path)
-    .file_name()
-    .unwrap()
-    .to_str()
-    .unwrap()
-    .to_owned()
+pub fn file_extension_from_path(path: &str) -> Result<&str, &str> {
+  let new_path = Path::new(path);
+
+  if !new_path.exists() {
+    return Err("Extension from file path. Path does not exist.");
+  }
+
+  match new_path.extension() {
+    Some(extension_os_str) => match extension_os_str.to_str() {
+      Some(os_str) => Ok(os_str),
+      None => Err("Extension from file path. Failed to convert OsStr to str."),
+    },
+    None => Err("Extension from file path. Failed to parse OS Path str."),
+  }
 }
 
 ///
-/// Get the file extension from the path provided.
+/// Automatically parse a file path into a String.
 ///
-pub fn file_extension_from_path(path: &str) -> &str {
-  panic_if_no_path(path, "file extension to String");
-  Path::new(path).extension().unwrap().to_str().unwrap()
+pub fn read_file_to_string(path: &str) -> Result<String, String> {
+  match fs::read_to_string(path) {
+    Ok(data) => Ok(data),
+    Err(e) => Err(format!("Path to String read failure. {}", e)),
+  }
 }
 
 ///
-/// This will first check if the file exists.
+/// Automatically parse a file path into a byte Vec.
 ///
-/// Next it will automatically parse the file into a String.
-///
-pub fn read_file_to_string(path: &str) -> String {
-  panic_if_no_path(path, "String");
-  fs::read_to_string(path).unwrap().parse().unwrap()
+pub fn read_file_to_byte_vec(path: &str) -> Result<Vec<u8>, String> {
+  match fs::read(path) {
+    Ok(data) => Ok(data),
+    Err(e) => Err(format!("Path to byte Vec read failure. {}", e)),
+  }
 }
 
 ///
-/// This will attempt to parse the file into a string.
+/// Automatically parse a file path into a BufReader<File>.
 ///
-pub fn read_file_to_string_result(path: &str) -> Result<String, Infallible> {
-  fs::read_to_string(path).unwrap().parse()
-}
-
-///
-/// This will first check if the file exists.
-///
-/// Next it will automatically parse the file into a byte Vec.
-///
-pub fn read_file_to_byte_vec(path: &str) -> Vec<u8> {
-  panic_if_no_path(path, "bytes");
-  fs::read(path).unwrap()
-}
-
-///
-/// This will first check if the file exists.
-///
-/// Next it will automatically parse the file into a BufReader<File>
-///
-pub fn read_path_to_buf_read(path: &str) -> BufReader<File> {
-  panic_if_no_path(path, "BufRead");
-  BufReader::new(File::open(path).unwrap())
+pub fn read_path_to_buf_read(path: &str) -> Result<BufReader<File>, String> {
+  match File::open(path) {
+    Ok(file) => Ok(BufReader::new(file)),
+    Err(e) => Err(format!("Path to BufReader failure. {}", e)),
+  }
 }

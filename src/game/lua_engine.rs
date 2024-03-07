@@ -48,10 +48,16 @@ impl LuaEngine {
     // You can't build upon what is fundamentally broken.
     if self.server_vm {
       // it's a server vm
-      self.run_file("./api/server/__internal_server.lua").unwrap();
+      match self.run_file("./api/server/__internal_server.lua") {
+        Ok(_) => (),
+        Err(e) => panic!("LuaEngine: Failed to load Server API. {}", e),
+      }
     } else {
       // it's a client vm
-      self.run_file("./api/client/__internal_client.lua").unwrap();
+      match self.run_file("./api/client/__internal_client.lua") {
+        Ok(_) => (),
+        Err(e) => panic!("LuaEngine: Failed to load Client API. {}", e),
+      }
     }
   }
 
@@ -61,7 +67,7 @@ impl LuaEngine {
   pub fn run_code(&self, raw_code: String) {
     match self.lua.load(raw_code).exec() {
       Ok(_) => (),
-      Err(err) => panic!("minetest: A fatal error has occurred! {}", err),
+      Err(err) => panic!("LuaEngine: A fatal error has occurred! {}", err),
     }
   }
 
@@ -72,7 +78,10 @@ impl LuaEngine {
   /// ! we think we should implement better protection!
   ///
   pub fn run_file(&self, file_location: &str) -> Result<(), String> {
-    let raw_code_string = read_file_to_string(file_location);
+    let raw_code_string = match read_file_to_string(file_location) {
+      Ok(raw_code) => raw_code,
+      Err(e) => panic!("LuaEngine: {}", e),
+    };
 
     if self.output_code_string {
       println!("{}", raw_code_string);
@@ -85,7 +94,7 @@ impl LuaEngine {
         // 1.) Lua file
         // 2.) Line/Offset
         Err(format!(
-          "minetest: encountered fatal mod error in {}: {}",
+          "LuaEngine: encountered fatal mod error in {}: {}",
           file_location, err
         ))
       }
@@ -102,12 +111,15 @@ impl LuaEngine {
 
     let mut config = Ini::new();
 
-    let game_raw_config_string = read_file_to_string(&base_path);
+    let game_raw_config_string = match read_file_to_string(&base_path) {
+      Ok(raw_config_string) => raw_config_string,
+      Err(e) => panic!("LuaEngine: {}", e),
+    };
 
     match config.read(game_raw_config_string) {
-      Ok(_) => println!("minetest: parsed [{}] game config.", game_name),
+      Ok(_) => println!("LuaEngine: parsed [{}] game config.", game_name),
       Err(e) => panic!(
-        "minetest: error parsing [{}] game config! {} ",
+        "LuaEngine: error parsing [{}] game config! {} ",
         game_name, e
       ),
     }
@@ -143,14 +155,14 @@ impl LuaEngine {
       mod_path.push_str("/main.lua");
 
       println!(
-        "--------------------\nminetest: Server attempting to load mod file [{}]",
+        "--------------------\nLuaEngine: Server attempting to load mod file [{}]",
         &mod_path
       );
 
       // This simply panics for now, but in the future we can push errors to the GUI.
       match self.run_file(&mod_path) {
         Ok(_) => println!(
-          "minetest: Server loaded mod file [{}]\n--------------------",
+          "LuaEngine: Server loaded mod file [{}]\n--------------------",
           &mod_path
         ),
         Err(e) => panic!("{}", e),
@@ -169,7 +181,7 @@ impl LuaEngine {
     // All required information should be sent by the Server to the Client.
     // Then it should be passed into the LuaEngine as needed.
     if !self.server_vm {
-      panic!("minetest: tried to load game lua files on a client LuaEngine!")
+      panic!("LuaEngine: tried to load game lua files on a client LuaEngine!")
     }
 
     // Todo: Maybe this can be a compile time const?

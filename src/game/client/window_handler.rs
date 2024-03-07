@@ -49,19 +49,29 @@ impl WindowHandler {
     // We want to use wgpu as our rendering multiplexer, disable OpenGL.
     hint::set("SDL_VIDEO_EXTERNAL_CONTEXT", "1");
 
-    let sdl_context = sdl2::init().unwrap();
+    let sdl_context = match sdl2::init() {
+      Ok(sdl) => sdl,
+      Err(e) => panic!("WindowHandler: Failed to initialize SDL2. {}", e),
+    };
 
-    let video_subsystem = sdl_context.video().unwrap();
+    let video_subsystem = match sdl_context.video() {
+      Ok(subsystem) => subsystem,
+      Err(e) => panic!("WindowHandler: Failed to initialize video subsystem. {}", e),
+    };
 
     let size = UVec2::new(512, 512);
 
-    let window = video_subsystem
+    let window = match video_subsystem
       .window("AMONGUSTESTLOLOLOLOLOLOLOLOLOLOLOLOLOL", size.x, size.y)
       .resizable()
       .position_centered()
       .allow_highdpi()
+      .metal_view()
       .build()
-      .unwrap();
+    {
+      Ok(window) => window,
+      Err(e) => panic!("WindowBuilder: Failed to initialize window. {}", e),
+    };
 
     let mut new_window_handler = WindowHandler {
       sdl_context,
@@ -77,14 +87,7 @@ impl WindowHandler {
 
     new_window_handler.show();
 
-    new_window_handler.sdl_context.mouse().capture(true);
-
     new_window_handler.toggle_mouse_capture(mouse);
-
-    new_window_handler
-      .sdl_context
-      .mouse()
-      .set_relative_mouse_mode(true);
 
     new_window_handler
   }
@@ -116,8 +119,10 @@ impl WindowHandler {
   /// Set the window title.
   ///
   pub fn set_title(&mut self, new_title: &str) {
-    // If something goes wrong, let it crash.
-    self.window.set_title(new_title).unwrap();
+    match self.window.set_title(new_title) {
+      Ok(_) => (),
+      Err(e) => panic!("WindowHandler: Failed to set title. {}", e),
+    }
   }
 
   ///
@@ -155,21 +160,33 @@ impl WindowHandler {
   /// Set the window to real fullscreen mode.
   ///
   pub fn set_fullscreen_real_mode(&mut self) {
-    self.window.set_fullscreen(FullscreenType::True).unwrap()
+    match self.window.set_fullscreen(FullscreenType::True) {
+      Ok(_) => (),
+      Err(e) => panic!("WindowHandler: Failed to set fullscreen real mode. {}", e),
+    }
   }
 
   ///
   /// Set the window to fake borderless fullscreen mode.
   ///
   pub fn set_fullscreen_borderless_mode(&mut self) {
-    self.window.set_fullscreen(FullscreenType::Desktop).unwrap()
+    match self.window.set_fullscreen(FullscreenType::Desktop) {
+      Ok(_) => (),
+      Err(e) => panic!(
+        "WindowHandler: Failed to set fullscreen borderless mode. {}",
+        e
+      ),
+    }
   }
 
   ///
   /// Set the window to normal windowed mode. (not fullscreen)
   ///
   pub fn set_windowed_mode(&mut self) {
-    self.window.set_fullscreen(FullscreenType::Off).unwrap()
+    match self.window.set_fullscreen(FullscreenType::Off) {
+      Ok(_) => (),
+      Err(e) => panic!("WindowHandler: Failed to set windoed mode. {}", e),
+    }
   }
 
   ///
@@ -221,37 +238,32 @@ impl WindowHandler {
     keyboard: &mut KeyboardController,
   ) {
     // Since SDL2 can poll anything, we need to ensure that we can actually utilize the sent scancode.
-    let scancode_result = match scancode_option {
-      Some(e) => Ok(e),
-      None => Err("minetest: severe error! User sent unknown scancode!"),
+    match scancode_option {
+      Some(scancode) => {
+        println!("TESTING: {}", scancode);
+
+        // And for now, when you press escape, the game simply exits.
+        if scancode == Scancode::Escape {
+          self.quit();
+        }
+        // ! TEMPORARY TESTING !
+        if scancode == Scancode::F5 && keyevent.is_down() {
+          self.toggle_mouse_capture(mouse)
+        }
+
+        // ! MAXIMIZE TESTING
+        if scancode == Scancode::F11 && keyevent.is_down() {
+          self.toggle_maximize();
+        }
+
+        keyboard.set_key(&scancode.to_string(), keyevent.is_down());
+      }
+
+      // If we can't use it, oops. Bail out.
+      None => {
+        error!("WindowHandler: User sent unknown scancode.");
+      }
     };
-
-    // If we can't use it, oops. Bail out.
-    if scancode_result.is_err() {
-      error!("{}", scancode_result.err().unwrap());
-      return;
-    }
-
-    // Now we know we can use it, hooray!
-    let scancode = scancode_result.unwrap();
-
-    println!("TESTING: {}", scancode);
-
-    // And for now, when you press escape, the game simply exits.
-    if scancode == Scancode::Escape {
-      self.quit();
-    }
-    // ! TEMPORARY TESTING !
-    if scancode == Scancode::F5 && keyevent.is_down() {
-      self.toggle_mouse_capture(mouse)
-    }
-
-    // ! MAXIMIZE TESTING
-    if scancode == Scancode::F11 && keyevent.is_down() {
-      self.toggle_maximize();
-    }
-
-    keyboard.set_key(&scancode.to_string(), keyevent.is_down());
   }
 
   ///
@@ -318,14 +330,14 @@ impl WindowHandler {
   ///
   fn handle_window_event(&mut self, win_event: WindowEvent) {
     match win_event {
-      WindowEvent::None => println!("minetest: window: event none"),
-      WindowEvent::Shown => println!("minetest: window: event shown"),
-      WindowEvent::Hidden => println!("minetest: window: event hidden"),
-      WindowEvent::Exposed => println!("minetest: window: event exposed"),
-      WindowEvent::Moved(x, y) => println!("minetest: window: event moved | x: {} | y: {} |", x, y),
+      WindowEvent::None => println!("WindowHandler window: event none"),
+      WindowEvent::Shown => println!("WindowHandler window: event shown"),
+      WindowEvent::Hidden => println!("WindowHandler window: event hidden"),
+      WindowEvent::Exposed => println!("WindowHandler window: event exposed"),
+      WindowEvent::Moved(x, y) => println!("WindowHandler window: event moved | x: {} | y: {} |", x, y),
       WindowEvent::Resized(width, height) => {
         println!(
-          "minetest: window: event resized | width: {} | height: {} |",
+          "WindowHandler window: event resized | width: {} | height: {} |",
           width, height
         );
 
@@ -333,27 +345,27 @@ impl WindowHandler {
       }
       WindowEvent::SizeChanged(width, height) => {
         println!(
-          "minetest: window: event size changed | width: {} | height: {} |",
+          "WindowHandler window: event size changed | width: {} | height: {} |",
           width, height
         );
         self.update_size(width, height);
       }
-      WindowEvent::Minimized => println!("minetest: window: event minimized"),
-      WindowEvent::Maximized => println!("minetest: window: event maximized"),
-      WindowEvent::Restored => println!("minetest: window: event restored"),
-      WindowEvent::Enter => println!("minetest: window: event enter"),
-      WindowEvent::Leave => println!("minetest: window: event leave"),
-      WindowEvent::FocusGained => println!("minetest: window: event focus gained"),
-      WindowEvent::FocusLost => println!("minetest: window: event focus lost"),
+      WindowEvent::Minimized => println!("WindowHandler window: event minimized"),
+      WindowEvent::Maximized => println!("WindowHandler window: event maximized"),
+      WindowEvent::Restored => println!("WindowHandler window: event restored"),
+      WindowEvent::Enter => println!("WindowHandler window: event enter"),
+      WindowEvent::Leave => println!("WindowHandler window: event leave"),
+      WindowEvent::FocusGained => println!("WindowHandler window: event focus gained"),
+      WindowEvent::FocusLost => println!("WindowHandler window: event focus lost"),
       WindowEvent::Close => {
-        println!("minetest: window: event close");
+        println!("WindowHandler window: event close");
         self.quit();
       }
-      WindowEvent::TakeFocus => println!("minetest: window: event take focus"),
-      WindowEvent::HitTest => println!("minetest: window: event hit test"),
-      WindowEvent::ICCProfChanged => println!("minetest: window: event icc prof changed"),
+      WindowEvent::TakeFocus => println!("WindowHandler window: event take focus"),
+      WindowEvent::HitTest => println!("WindowHandler window: event hit test"),
+      WindowEvent::ICCProfChanged => println!("WindowHandler window: event icc prof changed"),
       WindowEvent::DisplayChanged(display_id) => println!(
-        "minetest: window: event display changed | display_id: {} |",
+        "WindowHandler window: event display changed | display_id: {} |",
         display_id
       ),
     }
@@ -365,10 +377,13 @@ impl WindowHandler {
     mouse: &mut MouseController,
     keyboard: &mut KeyboardController,
   ) {
-    let mut event_pump = self
-      .sdl_context
-      .event_pump()
-      .expect("minetest: SDL2 context has randomly dissappeared!");
+    let mut event_pump = match self.sdl_context.event_pump() {
+      Ok(event_pump) => event_pump,
+      Err(e) => panic!(
+        "WindowHandler: SDL2 context has randomly dissappeared! {}",
+        e
+      ),
+    };
 
     // poll_iter is going to keep calling poll_event until there are no more events. It's easy mode. :)
     for event in event_pump.poll_iter() {

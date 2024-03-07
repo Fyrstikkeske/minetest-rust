@@ -16,10 +16,19 @@ pub struct Texture {
 
 impl Texture {
   pub fn new(path: &str, device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-    let name = file_name_from_path(path);
+    let name = match file_name_from_path(path) {
+      Ok(name) => name.to_string(),
+      Err(e) => panic!("Texture: {}", e),
+    };
 
-    let diffuse_bytes = read_file_to_byte_vec(path);
-    let diffuse_image = image::load_from_memory(diffuse_bytes.as_slice()).unwrap();
+    let diffuse_bytes = match read_file_to_byte_vec(path) {
+      Ok(diffuse_bytes) => diffuse_bytes,
+      Err(e) => panic!("Texture: {}", e),
+    };
+    let diffuse_image = match image::load_from_memory(diffuse_bytes.as_slice()) {
+      Ok(image) => image,
+      Err(e) => panic!("Texture: Failed to load image from memory. {}", e),
+    };
     let diffuse_rgba: ImageBuffer<Rgba<u8>, Vec<u8>> = diffuse_image.to_rgba8();
     let dimensions = diffuse_image.dimensions();
 

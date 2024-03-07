@@ -28,11 +28,16 @@ pub struct ServerConnection {
 
 impl ServerConnection {
   pub fn new(address: String, port: i32) -> Self {
-    let socket_address = Self::get_socket(&address, port)
-      .to_socket_addrs()
-      .unwrap()
-      .next()
-      .unwrap();
+    let socket_address = match Self::get_socket(&address, port).to_socket_addrs() {
+      Ok(mut iter) => match iter.next() {
+        Some(socket_address) => socket_address,
+        None => panic!("ServerConnection: Failed to get socket address. None available."),
+      },
+      Err(e) => panic!(
+        "ServerConnection: Failed to apply address and port into socket address. {}",
+        e
+      ),
+    };
     let transport_protocol = Transport::Udp;
 
     let (handler, listener) = node::split::<()>();
@@ -43,7 +48,7 @@ impl ServerConnection {
     match handler.network().listen(transport_protocol, socket_address) {
       Ok((id, real_address)) => {
         println!(
-          "minetest: connection created at id [{}], real address [{}]",
+          "ServerConnection connection created at id [{}], real address [{}]",
           id, real_address
         );
       }
@@ -109,18 +114,18 @@ impl ServerConnection {
       let receieved_string = match String::from_utf8(raw_message) {
         Ok(new_string) => new_string,
         Err(_) => {
-          println!("minetest: message buffer attack detected, bailing on deserialization!");
+          println!("ServerConnection message buffer attack detected, bailing on deserialization!");
           "".to_string()
         }
       };
 
-      println!("minetest: Server received message: {}", receieved_string);
+      println!("ServerConnection Server received message: {}", receieved_string);
 
       match receieved_string.as_str() {
         "hi" => self.send_data(end_point, "hi there!"),
         "MINETEST_HAND_SHAKE" => self.send_data(end_point, "MINETEST_HAND_SHAKE_CONFIRMED"),
         "MINETEST_PING_REQUEST" => {
-          println!("minetest: ServerConnection got ping request, sending confirmation to ClientConnection.");
+          println!("ServerConnection ServerConnection got ping request, sending confirmation to ClientConnection.");
           self.send_data(end_point, "MINETEST_PING_CONFIRMATION")
         }
         "MINETEST_SHUT_DOWN_REQUEST" => self.shutdown_requests.push(end_point),
